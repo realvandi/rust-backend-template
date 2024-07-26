@@ -67,7 +67,9 @@ fn create_root_routes() -> Router {
 #[tokio::main]
 async fn main() {
     // Set up tracing
-    tracing_subscriber::fmt().with_max_level(Level::INFO).init();
+    tracing_subscriber::fmt()
+        .with_max_level(Level::DEBUG)
+        .init();
 
     let app = Router::new()
         .nest("/a", create_a_routes())
