@@ -31,26 +31,45 @@ async fn page_c_controller(Query(range): Query<RangeParameters>) -> Html<String>
     Html(format!("<h1>Random Number: {}</h1>", random_number))
 }
 
+async fn page_foo_controller() -> impl IntoResponse {
+    "Welcome to the a/foo page!"
+}
+
+async fn page_root_controller() -> impl IntoResponse {
+    "Welcome to the root page!"
+}
+
+fn create_foo_routes() -> Router {
+    Router::new().route("/", get(page_foo_controller))
+}
+
 fn create_a_routes() -> Router {
-    Router::new().route("/a", get(page_a_controller))
+    Router::new()
+        .route("/", get(page_a_controller))
+        .nest("/foo", create_foo_routes())
 }
 
 fn create_b_routes() -> Router {
-    Router::new().route("/b", get(page_b_controller))
+    Router::new().route("/", get(page_b_controller))
 }
 
 fn create_c_routes() -> Router {
-    Router::new().route("/c", get(page_c_controller))
+    Router::new().route("/", get(page_c_controller))
+}
+
+fn create_root_routes() -> Router {
+    Router::new().route("/", get(page_root_controller))
 }
 
 #[tokio::main]
 async fn main() {
     let app = Router::new()
-        .merge(create_a_routes())
-        .merge(create_b_routes())
-        .merge(create_c_routes());
+        .nest("/a", create_a_routes())
+        .nest("/b", create_b_routes())
+        .nest("/c", create_c_routes())
+        .nest("/", create_root_routes());
 
-    //Create socket and bind
+    // Create socket and bind
     let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
     println!("listening on {}", addr);
     axum::Server::bind(&addr)
