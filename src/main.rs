@@ -7,7 +7,7 @@ use axum::{
 use rand::{thread_rng, Rng};
 use serde::Deserialize;
 use std::net::SocketAddr;
-use tower_http::trace::TraceLayer;
+use tower_http::trace::{DefaultMakeSpan, DefaultOnResponse, TraceLayer};
 use tracing::Level;
 use tracing_subscriber;
 
@@ -67,16 +67,18 @@ fn create_root_routes() -> Router {
 #[tokio::main]
 async fn main() {
     // Set up tracing
-    tracing_subscriber::fmt()
-        .with_max_level(Level::DEBUG)
-        .init();
+    tracing_subscriber::fmt().with_max_level(Level::INFO).init();
 
     let app = Router::new()
         .nest("/a", create_a_routes())
         .nest("/b", create_b_routes())
         .nest("/c", create_c_routes())
         .nest("/", create_root_routes())
-        .layer(TraceLayer::new_for_http());
+        .layer(
+            TraceLayer::new_for_http()
+                .make_span_with(DefaultMakeSpan::new().level(Level::INFO))
+                .on_response(DefaultOnResponse::new().level(Level::INFO)),
+        );
 
     // Create socket and bind
     let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
