@@ -1,3 +1,6 @@
+use axum::error_handling::HandleErrorLayer;
+use axum::http::StatusCode;
+use axum::BoxError;
 use axum::{
     extract::Query,
     response::{Html, IntoResponse},
@@ -7,11 +10,12 @@ use axum::{
 use rand::{thread_rng, Rng};
 use serde::Deserialize;
 use std::net::SocketAddr;
+use std::time::Duration;
+use tower::{buffer::BufferLayer, limit::RateLimitLayer, ServiceBuilder};
 use tower_http::trace::{DefaultMakeSpan, DefaultOnResponse, TraceLayer};
 use tracing::Level;
 use tracing_subscriber;
 
-// `Deserialize` need be implemented to use with `Query` extractor.
 #[derive(Deserialize)]
 struct RangeParameters {
     start: usize,
@@ -27,10 +31,7 @@ async fn page_b_controller() -> impl IntoResponse {
 }
 
 async fn page_c_controller(Query(range): Query<RangeParameters>) -> Html<String> {
-    // Generate a random number in range parsed from query.
     let random_number = thread_rng().gen_range(range.start..range.end);
-
-    // Send response in html format.
     Html(format!("<h1>Random Number: {}</h1>", random_number))
 }
 
@@ -66,7 +67,6 @@ fn create_root_routes() -> Router {
 
 #[tokio::main]
 async fn main() {
-    // Set up tracing
     tracing_subscriber::fmt().with_max_level(Level::INFO).init();
 
     let app = Router::new()
@@ -78,9 +78,19 @@ async fn main() {
             TraceLayer::new_for_http()
                 .make_span_with(DefaultMakeSpan::new().level(Level::INFO))
                 .on_response(DefaultOnResponse::new().level(Level::INFO)),
+        )
+        .layer(
+            ServiceBuilder::new()
+                .layer(HandleErrorLayer::new(|err: BoxError| async move {
+                    (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        format!("Unhandled error: {}", err),
+                    )
+                }))
+                .layer(BufferLayer::new(1024))
+                .layer(RateLimitLayer::new(4, Duration::from_secs(5))),
         );
 
-    // Create socket and bind
     let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
     println!("listening on {}", addr);
     axum::Server::bind(&addr)
